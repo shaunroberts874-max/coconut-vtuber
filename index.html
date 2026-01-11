@@ -1,84 +1,188 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Coconut VTuber</title>
+<meta charset="UTF-8" />
+<title>Coconutty VTuber</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <style>
-html,body{
-  margin:0;
-  width:100%;
-  height:100%;
-  background:transparent;
-  display:flex;
-  justify-content:center;
-  align-items:center;
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
-.coconut{
-  width:320px;
-  height:320px;
-  border-radius:50%;
-  background:radial-gradient(circle at 30% 25%,#cfa77e,#8b5a2b 45%,#3a2416 80%);
-  position:relative;
+
+/* TikTok-friendly square */
+#stage {
+  width: 360px;
+  height: 360px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
-.eye{
-  width:60px;
-  height:60px;
-  background:white;
-  border-radius:50%;
-  position:absolute;
-  top:40%;
+
+/* Coconut body */
+.coconut {
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 25% 20%, #d8b38a, #9b6434 45%, #3a2416 80%),
+    radial-gradient(circle at 70% 65%, rgba(0,0,0,.25), transparent 60%);
+  position: relative;
+  box-shadow:
+    inset -12px -18px 30px rgba(0,0,0,.35),
+    inset 8px 8px 18px rgba(255,255,255,.15),
+    0 12px 30px rgba(0,0,0,.45);
+  filter: saturate(1.05);
 }
-.eye.left{left:60px}
-.eye.right{right:60px}
-.pupil{
-  width:22px;
-  height:22px;
-  background:black;
-  border-radius:50%;
-  position:absolute;
-  top:20px;
-  left:20px;
+
+/* Fuzzy texture */
+.coconut::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background-image:
+    repeating-radial-gradient(circle at 40% 30%,
+      rgba(255,255,255,.03),
+      rgba(0,0,0,.04) 2px);
+  mix-blend-mode: overlay;
+  pointer-events: none;
 }
-.mouth{
-  position:absolute;
-  bottom:70px;
-  left:50%;
-  transform:translateX(-50%);
-  background:#120805;
-  width:80px;
-  height:10px;
-  border-radius:50%;
+
+/* Eyes */
+.eye {
+  width: 56px;
+  height: 56px;
+  background: #fff;
+  border-radius: 50%;
+  position: absolute;
+  top: 40%;
+  overflow: hidden;
+}
+.eye.left { left: 70px; }
+.eye.right { right: 70px; }
+
+.pupil {
+  width: 20px;
+  height: 20px;
+  background: #000;
+  border-radius: 50%;
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  transition: transform 0.1s linear;
+}
+
+/* Mouth container */
+.mouth {
+  position: absolute;
+  bottom: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* Mouth shapes */
+.mouth.closed {
+  width: 90px;
+  height: 10px;
+  background: #140a06;
+  border-radius: 20px;
+}
+.mouth.a {
+  width: 70px;
+  height: 60px;
+  background: #140a06;
+  border-radius: 50%;
+}
+.mouth.e {
+  width: 90px;
+  height: 28px;
+  background: #140a06;
+  border-radius: 40px;
+}
+.mouth.o {
+  width: 55px;
+  height: 55px;
+  background: #140a06;
+  border-radius: 50%;
+}
+
+/* Branding */
+.brand {
+  position: absolute;
+  bottom: -28px;
+  width: 100%;
+  text-align: center;
+  font-family: system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 20px;
+  color: #5a351c;
+  text-shadow: 0 2px 4px rgba(0,0,0,.4);
 }
 </style>
 </head>
-<body>
 
-<div class="coconut">
-  <div class="eye left"><div class="pupil"></div></div>
-  <div class="eye right"><div class="pupil"></div></div>
-  <div class="mouth" id="mouth"></div>
+<body>
+<div id="stage">
+  <div class="coconut">
+    <div class="eye left"><div class="pupil" id="pupilL"></div></div>
+    <div class="eye right"><div class="pupil" id="pupilR"></div></div>
+
+    <div class="mouth closed" id="mouth"></div>
+    <div class="brand">Coconutty</div>
+  </div>
 </div>
 
 <script>
-let mouth=document.getElementById("mouth");
+const mouth = document.getElementById("mouth");
+const pupilL = document.getElementById("pupilL");
+const pupilR = document.getElementById("pupilR");
 
-navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
-  const ctx=new AudioContext();
-  const src=ctx.createMediaStreamSource(stream);
-  const analyser=ctx.createAnalyser();
-  analyser.fftSize=256;
+/* Noise gate + sensitivity */
+const NOISE_GATE = 18;   // raise if background noise
+const HIGH_LEVEL = 55;
+
+navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+  const ctx = new AudioContext();
+  const src = ctx.createMediaStreamSource(stream);
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 256;
   src.connect(analyser);
-  const data=new Uint8Array(analyser.frequencyBinCount);
 
-  function loop(){
+  const data = new Uint8Array(analyser.frequencyBinCount);
+
+  function animate() {
     analyser.getByteFrequencyData(data);
-    let vol=data.reduce((a,b)=>a+b)/data.length;
-    mouth.style.height=Math.min(60,10+vol*0.6)+"px";
-    requestAnimationFrame(loop);
+    let vol = data.reduce((a,b)=>a+b,0) / data.length;
+
+    /* Mouth logic */
+    mouth.className = "mouth";
+
+    if (vol < NOISE_GATE) {
+      mouth.classList.add("closed");
+    } else if (vol < 30) {
+      mouth.classList.add("e");
+    } else if (vol < HIGH_LEVEL) {
+      mouth.classList.add("o");
+    } else {
+      mouth.classList.add("a");
+    }
+
+    /* Eye movement (subtle) */
+    let move = Math.min(vol / 12, 6);
+    pupilL.style.transform = `translate(${move}px, ${move}px)`;
+    pupilR.style.transform = `translate(${move}px, ${move}px)`;
+
+    requestAnimationFrame(animate);
   }
-  loop();
+
+  animate();
 });
 </script>
-
 </body>
 </html>
